@@ -1,8 +1,12 @@
 import os
+import gc
 import torch
 from flask import Flask, request, jsonify
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from peft import PeftModel
+
+# Keep PyTorch from spinning up extra threads (each has its own overhead) on a small instance
+torch.set_num_threads(1)
 
 app = Flask(__name__)
 
@@ -13,11 +17,22 @@ print("Loading tokenizer...")
 tokenizer = AutoTokenizer.from_pretrained(ADAPTER_DIR)
 
 print("Loading base model...")
-base_model = AutoModelForSequenceClassification.from_pretrained(BASE_MODEL, num_labels=2)
+base_model = AutoModelForSequenceClassification.from_pretrained(
+    BASE_MODEL,
+    num_labels=2,
+    low_cpu_mem_usage=True,  # streams weights in instead of duplicating them during load
+)
 
 print("Applying LoRA adapter...")
 model = PeftModel.from_pretrained(base_model, ADAPTER_DIR)
+
+print("Merging adapter into base weights and dropping the PEFT wrapper...")
+model = model.merge_and_unload()  # collapses LoRA into the base weights, removes adapter overhead
 model.eval()
+
+# Drop references so garbage collection can reclaim the now-unused separate base_model object
+del base_model
+gc.collect()
 
 print("Model ready.")
 
