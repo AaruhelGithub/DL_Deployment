@@ -30,8 +30,20 @@ print("Merging adapter into base weights and dropping the PEFT wrapper...")
 model = model.merge_and_unload()  # collapses LoRA into the base weights, removes adapter overhead
 model.eval()
 
+# Freeze all parameters explicitly (inference-only, no need to track gradients anywhere)
+for param in model.parameters():
+    param.requires_grad_(False)
+
 # Drop references so garbage collection can reclaim the now-unused separate base_model object
 del base_model
+gc.collect()
+
+print("Applying dynamic int8 quantization to linear layers...")
+# This is the big one: Linear layers hold most of RoBERTa's weight memory.
+# Quantizing them to int8 cuts their footprint roughly 3-4x vs float32, with a small accuracy cost.
+model = torch.quantization.quantize_dynamic(
+    model, {torch.nn.Linear}, dtype=torch.qint8
+)
 gc.collect()
 
 print("Model ready.")
@@ -44,7 +56,7 @@ def score_option(prompt, option_text):
         return_tensors="pt",
         padding="max_length",
         truncation=True,
-        max_length=256,
+        max_length=128,  # reduced from 256 to save memory; raise if your prompts/options get truncated
     )
     with torch.no_grad():
         outputs = model(**inputs)
