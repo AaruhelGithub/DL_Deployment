@@ -6,7 +6,7 @@ from peft import PeftModel
 
 app = Flask(__name__)
 
-ADAPTER_DIR = "model"  # folder containing adapter_config.json, adapter_model.safetensors, tokenizer files
+ADAPTER_DIR = "models"  # folder containing adapter_config.json, adapter_model.safetensors, tokenizer files
 BASE_MODEL = "roberta-base"
 
 print("Loading tokenizer...")
