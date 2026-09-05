@@ -49,9 +49,76 @@ def build_feature(prompt_text, option_text):
     return np.concatenate([prompt_vec, opt_vec, diff_vec, prod_vec, [sim]])
 
 
+HOME_PAGE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Smart MCQ Solver</title>
+<style>
+  body { font-family: sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+  input, textarea { width: 100%; padding: 8px; margin: 6px 0 14px; box-sizing: border-box; }
+  button { padding: 10px 20px; cursor: pointer; }
+  #result { white-space: pre-wrap; background: #f5f5f5; padding: 14px; margin-top: 20px; border-radius: 6px; }
+  label { font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Smart MCQ Solver</h1>
+
+<label>Prompt / Question</label>
+<textarea id="prompt" rows="3"></textarea>
+
+<label>Option A</label><input id="a">
+<label>Option B</label><input id="b">
+<label>Option C</label><input id="c">
+<label>Option D</label><input id="d">
+<label>Option E</label><input id="e">
+
+<button onclick="predict()">Solve</button>
+
+<div id="result"></div>
+
+<script>
+async function predict() {
+  const resultEl = document.getElementById("result");
+  resultEl.textContent = "Thinking...";
+
+  const payload = {
+    prompt: document.getElementById("prompt").value,
+    A: document.getElementById("a").value,
+    B: document.getElementById("b").value,
+    C: document.getElementById("c").value,
+    D: document.getElementById("d").value,
+    E: document.getElementById("e").value,
+  };
+
+  try {
+    const response = await fetch("/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      resultEl.textContent = "Error: " + JSON.stringify(data);
+      return;
+    }
+    const lines = data.ranked.map((r, i) => `${i + 1}. ${r.option} — ${r.score.toFixed(4)}`);
+    resultEl.textContent = `Top-3: ${data.top3.join(" ")}\\n\\n${lines.join("\\n")}`;
+  } catch (err) {
+    resultEl.textContent = "Request failed: " + err.message;
+  }
+}
+</script>
+</body>
+</html>
+"""
+
+
 @app.route("/", methods=["GET"])
 def home():
-    return "MCQ Solver (LightGBM + Word2Vec) is running. POST to /predict with JSON: {prompt, A, B, C, D, E}"
+    return HOME_PAGE
 
 
 @app.route("/predict", methods=["POST"])
